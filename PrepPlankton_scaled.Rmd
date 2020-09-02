@@ -1,7 +1,7 @@
 ---
 title: "PrepPlankton_scaled"
-author: "Phoebe.Woodworth-Jefcoats@noaa.gov"
-date: "8/24/2020"
+author: "julia.blanchard@utas.edu.au"
+date: "2/9/2020"
 output: 
   html_document:
     toc: yes
@@ -10,6 +10,8 @@ output:
 ---
 
 ## Purpose
+
+[Modified from Phoebe Woodworth -Jefcoat's Hawaii longline example]
 
 The purpose of this script is to create scaled resource spectra for the therMizer FishMIP runs.  There are four climate scenarios:
 
@@ -59,18 +61,25 @@ largeGFDL <- (4/3)*pi*((0.5*102.5*0.0001)^3)
 zmicro <- (4/3)*pi*((0.5*11*0.0001)^3)
 zmeso <- (4/3)*pi*((0.5*260*0.0001)^3)
 
-area = 20527092 * 10^6
+#### NEED TO WORK OUT WHAT THE AREA IS?
+#area = 20527092 * 10^6
+
+#### I used total volume of 5.5e13 for North Sea, in cubic metres (Andersen & Ursin 1977) * conversion to grams ww
+
+area = 5.5e13* 10^6
+
+
 
 # Load data
-GFDL_picon <- read.csv("Hawaii_GFDL-ESM4_picontrol_annual_1601_2100.csv", header = TRUE)
-GFDL_hist <- read.csv("Hawaii_GFDL-ESM4_historical_annual_1850_2014.csv", header = TRUE)
-GFDL_ssp126 <- read.csv("Hawaii_GFDL-ESM4_ssp126_annual_2015_2100.csv", header = TRUE)
-GFDL_ssp585 <- read.csv("Hawaii_GFDL-ESM4_ssp585_annual_2015_2100.csv", header = TRUE)
+GFDL_picon <- read.csv("North_Sea_GFDL-ESM4_picontrol_annual_1601_2100.csv", header = TRUE)
+GFDL_hist <- read.csv("North_Sea_GFDL-ESM4_historical_annual_1850_2014.csv", header = TRUE)
+GFDL_ssp126 <- read.csv("North_Sea_GFDL-ESM4_ssp126_annual_2015_2100.csv", header = TRUE)
+GFDL_ssp585 <- read.csv("North_Sea_GFDL-ESM4_ssp585_annual_2015_2100.csv", header = TRUE)
 
-IPSL_picon <- read.csv("Hawaii_IPSL-CM6A-LR_picontrol_annual_1601_2100.csv", header = TRUE)
-IPSL_hist <- read.csv("Hawaii_IPSL-CM6A-LR_historical_annual_1850_2014.csv", header = TRUE)
-IPSL_ssp126 <- read.csv("Hawaii_IPSL-CM6A-LR_ssp126_annual_2015_2100.csv", header = TRUE)
-IPSL_ssp585 <- read.csv("Hawaii_IPSL-CM6A-LR_ssp585_annual_2015_2100.csv", header = TRUE)
+IPSL_picon <- read.csv("North_Sea_IPSL-CM6A-LR_picontrol_annual_1601_2100.csv", header = TRUE)
+IPSL_hist <- read.csv("North_Sea_IPSL-CM6A-LR_historical_annual_1850_2014.csv", header = TRUE)
+IPSL_ssp126 <- read.csv("North_Sea_IPSL-CM6A-LR_ssp126_annual_2015_2100.csv", header = TRUE)
+IPSL_ssp585 <- read.csv("North_Sea_IPSL-CM6A-LR_ssp585_annual_2015_2100.csv", header = TRUE)
 
 # Calculate numerical abundance in each size class, for only the years we're interested in
 GFDL_picon_yrs <- which(GFDL_picon$Date..yyyy. >= 1950)
@@ -129,17 +138,24 @@ In order to make sure that the spectra we create from the CMIP6 data match our t
 ``` {r message = FALSE}
 
 library(mizer)
-
 # Load species parameters
-species_params <- read.csv('NPac_species_params.csv')
+species_params <- read.csv('nsparams.csv')[,-1]
 
-# Load interaction matrix
-inter <- read.csv('inter_NPAC.csv', row.names = 1)
-inter <- as(inter, "matrix")
+# Set up gear params
+gear_params<-data.frame(species = species_params$species,
+               gear = species_params$species,
+               sel_func = "sigmoid_length",
+               l25 =  c(7.6, 9.8, 8.7, 10.1, 11.5, 19.8, 16.4, 19.8, 11.5,
+                        19.1, 13.2, 35.3),
+               l50 = c(8.1, 11.8, 12.2, 20.8, 17.0, 29.0, 25.8, 29.0, 17.0,
+                       24.3, 22.9, 43.6),
+               catchability = species_params$catchability)
 
-# Create the params object 
-# Since we're not going to run mizer, we'll ignore the column about the selectivity function so we don't get an error
-params <- newMultispeciesParams(species_params[,1:14], interaction = inter, min_w_pp = 1e-14, no_w = 100, kappa = 1e12, w_pp_cutoff = 455400 * 1.1)
+# Create the params object - check kappa is based on Spence et al 2016  value
+params <- newMultispeciesParams(species_params, 
+                                interaction = inter, 
+                                kappa = 9.27e10,
+                                gear_params = gear_params)
 
 ```
 
@@ -222,7 +238,7 @@ for (t in seq(2015, 2100, 1)){
   GFDL_ssp585_plankton <- log10(c(GFDL_ssp585_sm_num[t-2014], GFDL_ssp585_lg_num[t-2014], GFDL_ssp585_zmicro_num[t-2014], GFDL_ssp585_zmeso_num[t-2014]))
   IPSL_ssp585_plankton <- log10(c(IPSL_ssp585_nano_num[t-2014], IPSL_ssp585_lg_num[t-2014], IPSL_ssp585_zmicro_num[t-2014], IPSL_ssp585_zmeso_num[t-2014]))
   
-  # Calculate the sloes and intercept for ESM size range
+  # Calculate the slopes and intercept for ESM size range
   GFDL_ssp126_lm <- lm(GFDL_ssp126_plankton ~ GFDL_x)
   IPSL_ssp126_lm <- lm(IPSL_ssp126_plankton ~ IPSL_x)
   
@@ -286,71 +302,51 @@ IPSL_CCscenario_126 <- rbind(IPSL_hist_n_pp_array, IPSL_ssp126_n_pp_array)
 IPSL_CCscenario_585 <- rbind(IPSL_hist_n_pp_array, IPSL_ssp585_n_pp_array)
 
 # Let's create some plots to make sure things look reasonable
-plot(picon_times, GFDL_picon_coefs[,1]*0.85, type = "l", col = "black", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(hist_times, GFDL_hist_coefs[,1]*0.85, type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(ssp_times, GFDL_ssp126_coefs[,1]*0.85, type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(ssp_times, GFDL_ssp585_coefs[,1]*0.85, type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = "Intercept")
 
-plot(picon_times, IPSL_picon_coefs[,1]*0.85, type = "l", col = "black", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(hist_times, IPSL_hist_coefs[,1]*0.85, type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(ssp_times, IPSL_ssp126_coefs[,1]*0.85, type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(ssp_times, IPSL_ssp585_coefs[,1]*0.85, type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(11,12.5), xlab = " ", ylab = "Intercept")
+int_min <- min(GFDL_picon_coefs[,1],GFDL_hist_coefs[,1],GFDL_ssp126_coefs[,1],GFDL_ssp585_coefs[,1],IPSL_picon_coefs[,1], IPSL_hist_coefs[,1],IPSL_ssp126_coefs[,1],IPSL_ssp585_coefs[,1])
+int_max <- max(GFDL_picon_coefs[,1],GFDL_hist_coefs[,1],GFDL_ssp126_coefs[,1],GFDL_ssp585_coefs[,1],IPSL_picon_coefs[,1], IPSL_hist_coefs[,1],IPSL_ssp126_coefs[,1],IPSL_ssp585_coefs[,1])
 
-plot(picon_times, GFDL_picon_coefs[,2]*1.0, type = "l", col = "black", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(hist_times, GFDL_hist_coefs[,2]*1.0, type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(ssp_times, GFDL_ssp126_coefs[,2]*1.0, type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(ssp_times, GFDL_ssp585_coefs[,2]*1.0, type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = "Slope")
 
-plot(picon_times, IPSL_picon_coefs[,2]*1.0, type = "l", col = "black", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = " ")
+plot(picon_times, GFDL_picon_coefs[,1], type = "l", col = "black", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = " ")
 par(new = TRUE)
-plot(hist_times, IPSL_hist_coefs[,2]*1.0, type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = " ")
+plot(hist_times, GFDL_hist_coefs[,1], type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = " ")
 par(new = TRUE)
-plot(ssp_times, IPSL_ssp126_coefs[,2]*1.0, type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = " ")
+plot(ssp_times, GFDL_ssp126_coefs[,1], type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = " ")
 par(new = TRUE)
-plot(ssp_times, IPSL_ssp585_coefs[,2]*1.0, type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(-1.1,-0.9), xlab = " ", ylab = "Slope")
+plot(ssp_times, GFDL_ssp585_coefs[,1], type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = "Intercept")
 
-```
-That looks alright.  And remarkably similar across both models...  Let's also plot the size spectra.
+plot(picon_times, IPSL_picon_coefs[,1], type = "l", col = "black", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(hist_times, IPSL_hist_coefs[,1], type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(ssp_times, IPSL_ssp126_coefs[,1], type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(ssp_times, IPSL_ssp585_coefs[,1], type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(int_min,int_max), xlab = " ", ylab = "Intercept")
 
-``` {r}
 
-# Plot spectra, looping through time steps
-for (t in seq(1950,2099,1)){
-  plot(log10(size), GFDL_picon_n_pp_array[t-1949,], type = "l", col = "black", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-  par(new = TRUE)
-  plot(log10(size), GFDL_CCscenario_126[t-1949,], type = "l", col = "cyan", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-  par(new = TRUE)
-  plot(log10(size), GFDL_CCscenario_585[t-1949,], type = "l", col = "blue", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-  par(new = TRUE)
-}
-plot(log10(size), GFDL_picon_n_pp_array[2100-1949,], type = "l", col = "black", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(log10(size), GFDL_CCscenario_126[2100-1949,], type = "l", col = "cyan", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-par(new = TRUE)
-plot(log10(size), GFDL_CCscenario_585[2100-1949,], type = "l", col = "blue", xlim = c(-14,6), ylim = c(0,40), xlab = expression('log'[10]*'(size)'), ylab = expression('log'[10]*'(abundance)'))
+slope_min <- min(GFDL_picon_coefs[,2],GFDL_hist_coefs[,2],GFDL_ssp126_coefs[,2],GFDL_ssp585_coefs[,2],IPSL_picon_coefs[,2], IPSL_hist_coefs[,2],IPSL_ssp126_coefs[,2],IPSL_ssp585_coefs[,2])
+slope_max <- max(GFDL_picon_coefs[,2],GFDL_hist_coefs[,2],GFDL_ssp126_coefs[,2],GFDL_ssp585_coefs[,2],IPSL_picon_coefs[,2], IPSL_hist_coefs[,2],IPSL_ssp126_coefs[,2],IPSL_ssp585_coefs[,2])
 
-for (t in seq(1950,2099,1)){
-  plot(log10(size), IPSL_picon_n_pp_array[t-1949,], type = "l", col = "black", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-  par(new = TRUE)
-  plot(log10(size), IPSL_CCscenario_126[t-1949,], type = "l", col = "cyan", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-  par(new = TRUE)
-  plot(log10(size), IPSL_CCscenario_585[t-1949,], type = "l", col = "blue", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
-  par(new = TRUE)
-}
-plot(log10(size), IPSL_picon_n_pp_array[2100-1949,], type = "l", col = "black", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
+
+
+plot(picon_times, GFDL_picon_coefs[,2], type = "l", col = "black", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = " ")
 par(new = TRUE)
-plot(log10(size), IPSL_CCscenario_126[2100-1949,], type = "l", col = "cyan", xlim = c(-14,6), ylim = c(0,40), xlab = " ", ylab = " ")
+plot(hist_times, GFDL_hist_coefs[,2], type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = " ")
 par(new = TRUE)
-plot(log10(size), IPSL_CCscenario_585[2100-1949,], type = "l", col = "blue", xlim = c(-14,6), ylim = c(0,40), xlab = expression('log'[10]*'(size)'), ylab = expression('log'[10]*'(abundance)'))
+plot(ssp_times, GFDL_ssp126_coefs[,2], type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(ssp_times, GFDL_ssp585_coefs[,2], type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = "Slope")
+
+plot(picon_times, IPSL_picon_coefs[,2], type = "l", col = "black", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(hist_times, IPSL_hist_coefs[,2], type = "l", col = "grey", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(ssp_times, IPSL_ssp126_coefs[,2], type = "l", col = "cyan", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = " ")
+par(new = TRUE)
+plot(ssp_times, IPSL_ssp585_coefs[,2], type = "l", col = "blue", xlim = c(1950, 2100), ylim = c(slope_min ,slope_max), xlab = " ", ylab = "Slope")
+
+
+## Note in mizer slope values need to be -2, ensure conversion to nromalised desnity is carried out
 
 ```
 

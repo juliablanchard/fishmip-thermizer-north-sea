@@ -1,7 +1,7 @@
 ---
 title: "PrepTemperature_GFDL"
-author: "Phoebe.Woodworth-Jefcoats@noaa.gov"
-date: "8/13/2020"
+author: "julia.blanchard@utas.edu.au"
+date: "2/9/2020"
 output: 
   html_document:
     toc: yes
@@ -10,6 +10,8 @@ output:
 ---
 
 ## Purpose
+
+[Modified from Woodworth- Jefcoats' Hawaii Longline example]
 
 The purpose of this script is to create time series of temperature for the therMizer FishMIP runs.  There are four climate scenarios:  
 
@@ -26,10 +28,10 @@ To facilitate comparison with the previous FishMIP simulations, we'll use the sa
 
 ```{r}
 ### Load GFDL-ESM4 data
-picon <- read.csv('Hawaii_GFDL-ESM4_picontrol_annual_1601_2100.csv', header = TRUE)
-hist <- read.csv('Hawaii_GFDL-ESM4_historical_annual_1850_2014.csv', header = TRUE)
-ssp126 <- read.csv('Hawaii_GFDL-ESM4_ssp126_annual_2015_2100.csv', header = TRUE)
-ssp585 <- read.csv('Hawaii_GFDL-ESM4_ssp585_annual_2015_2100.csv', header = TRUE)
+picon <- read.csv('North_Sea_GFDL-ESM4_picontrol_annual_1601_2100.csv', header = TRUE)
+hist <- read.csv('North_Sea_GFDL-ESM4_historical_annual_1850_2014.csv', header = TRUE)
+ssp126 <- read.csv('North_Sea_GFDL-ESM4_ssp126_annual_2015_2100.csv', header = TRUE)
+ssp585 <- read.csv('North_Sea_GFDL-ESM4_ssp585_annual_2015_2100.csv', header = TRUE)
 
 # Create array and fill 
 picon_out <- array(numeric(), c(2100-1950+1,12)) # years 1950 - 2100 by 12 species
@@ -47,17 +49,17 @@ for (s in seq(1,12,1)) {
   # species 2 (Mahi), 7 (StripedMarin), 8 (Wahoo), and 10 (BlueMarlin)
   # will be affected by surface temperature only
   # whereas the others will experience the water column average
-	if (s == 2 | s == 7 | s == 8 | s == 10) {
-		picon_out[,s] <- picon$tos..degC.[picon_yrs]
-		hist_out[,s] <- hist$tos..degC.[hist_yrs]
-		ssp126_out[,s] <- ssp126$tos..degC.
-		ssp585_out[,s] <- ssp585$tos..degC.
-	} else {
+	# if (s == 2 | s == 7 | s == 8 | s == 10) {
+	# 	picon_out[,s] <- picon$tos..degC.[picon_yrs]
+	# 	hist_out[,s] <- hist$tos..degC.[hist_yrs]
+	# 	ssp126_out[,s] <- ssp126$tos..degC.
+	# 	ssp585_out[,s] <- ssp585$tos..degC.
+	# } else {
 		picon_out[,s] <- ((picon$tos..degC.[picon_yrs] + picon$tob..degC.[picon_yrs]) / 2)
 		hist_out[,s] <- ((hist$tos..degC.[hist_yrs] + hist$tob..degC.[hist_yrs]) / 2)
 		ssp126_out[,s] <- ((ssp126$tos..degC. + ssp126$tob..degC.) / 2)
 		ssp585_out[,s] <- ((ssp585$tos..degC. + ssp585$tob..degC.) / 2)
-	}
+	# }
 }		
 ### Save output for input into mizerNPAC
 picon_times <- seq(1950,2100,1)
@@ -65,7 +67,7 @@ hist_times <- seq(1950,2014,1)
 ssp126_times <- seq(2015,2100,1)
 ssp585_times <- seq(2015,2100,1)
 
-species_names <- c("Bigeye","Mahi","BlueShark","Skipjack","Yellowfin","Albacore","StripedMarlin","Wahoo","Swordfish","BlueMarlin","Lancetfish","Opah") # to match case with therMizer parameters
+species_names <- c("Sprat","Sandeel","N.pout","Herring","Dab","Whiting","Sole","Gurnard","Plaice","Haddock","Cod","Saithe" ) # to match case with therMizer parameters
 
 picon_ocean_temp_array <- array(NA, dim = c(length(picon_times), length(species_names)), dimnames = list(time = picon_times, sp = species_names))
 

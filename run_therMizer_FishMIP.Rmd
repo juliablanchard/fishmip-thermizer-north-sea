@@ -1,7 +1,7 @@
 ---
 title: "run_therMizer_FishMIP"
-author: "Phoebe.Woodworth-Jefcoats@noaa.gov"
-date: "8/25/2020"
+author: "julia.blanchard@utas.edu.au"
+date: "2/9/2020"
 output:
   html_document:
     toc: yes
@@ -10,7 +10,7 @@ output:
 ---
 
 ## Purpose
-The purpose of this script is to run the FishMIP simulations using therMizer.  These runs are for the regional model of Hawaii's longline fishery.  They include temperature and plankton forcing from the CMIP6 models.  Many thanks to Gustav Delius for several tips on improving earlier versions of the code used here.
+These runs are for the regional model of North Sea fish community and multispecies fisheries for FishMIP simulations using therMizer. They include temperature and plankton forcing from the CMIP6 models.  This code has been adapted from Phoebe Woodworth-Jefcoats' script for the Hawaii longline fishery (https://github.com/pwoodworth-jefcoats/therMizer-FishMIP-2020-HI). The same approach can be adapted for any regional mizer model using this script, provided the regional forcing files have been obtained (available from FishMip coordinators).
 
 ## Load libraries
 Mizer version 2.0.3 or later is needed to use the extension. 
@@ -29,47 +29,38 @@ library("mizer")
 
 
 ## Set up multispecies model 
-For the FishMIP simulations, we'll be using the species parameters in [Woodworth-Jefcoats et al. 2019](https://www.frontiersin.org/articles/10.3389/fmars.2019.00383/full).  We'll also follow their implemetation of fishing mortality, so we'll need to create a selectivity function which we'll call `knife_edge_phased`.  We're doing this before creating the `params` object so that the fishing selectivity parameter is recognized.
+For the FishMIP simulations, we'll be using the species parameters in [Blanchard et al. 2014](https://besjournals.onlinelibrary.wiley.com/doi/10.1111/1365-2664.12238).  These parameters are already included in the mizer package and we will update some of the parameters based on more recent work.
 
 In order to use the therMizer extension, two additional species parameters are needed: `temp_min` and `temp_max`.  These represent the thermal tolerance limits for each species.  You could find these in the literature in physiological or tagging studies.  Alternatively, they can be assumed based on species' vertical and geographic ranges, that of their prey species, or some other information.  Note that these are only needed for the therMizer extention functions that relate to temperature, not those that relate to plankton.
 
+For the North Sea fish species, I have used the values given in Fishbase for thermal ranges (sometimes by clicking on the map). A lot of info is available in Rfishbase but not thermal range. A list for many species is also available in the Supplement of Cheung et al 2013 Nature Climate Change. But in reality these are much wider than the Cheung et al. estimates. For example, North Sea cod tagging studies show a range of -1.5 - 19 degrees C (Righton et al 2010, MEPS).
+
 ```{r message = FALSE}
 
-# Create the selectivity function:
-
-#' Size based knife-edge selectivity function that is phased in 
-#'
-#' A knife-edge selectivity function where only sizes greater or equal to
-#' \code{knife_edge_size1} are selected.  Selectivity is then phased in through
-#' size \code{knife_edge_size2}.  This simulates the reduced effectiveness of 
-#' longline gear for smaller fish
-#'
-#' @param w The size of the individual.
-#' @param knife_edge_size1 The size at which the knife-edge is initiated.
-#' @param knife_edge_size2 The size at which selectivity is fully realized.
-#' @export
-knife_edge_phased <- function(w, knife_edge_size1, knife_edge_size2, ...) { 
-	sel <- rep(0, length(w)) 
-	
-	# Phased in linearly
-	F0 <- which(w < knife_edge_size1) # to find one size smaller than that fished, for the 0 value 
-	F1 <- which(w < knife_edge_size2) # to find end of escalation size range 
-	lo_sel <- max(F0):max(F1) 
-	sel[lo_sel] <- seq(0, 1, length = length(lo_sel)) # linear increase from 0 to F 
-	sel[w >= knife_edge_size2] <- 1 
-	return(sel) 
-	
-} 
-
 # Load species parameters
-species_params <- read.csv('NPac_species_params.csv')
+species_params <- read.csv('nsparams.csv')[,-1]
 
-# Load interaction matrix
-inter <- read.csv('inter_NPAC.csv', row.names = 1)
-inter <- as(inter, "matrix")
+# Set up gear params
+gear_params<-data.frame(species = species_params$species,
+               gear = species_params$species,
+               sel_func = "sigmoid_length",
+               l25 =  c(7.6, 9.8, 8.7, 10.1, 11.5, 19.8, 16.4, 19.8, 11.5,
+                        19.1, 13.2, 35.3),
+               l50 = c(8.1, 11.8, 12.2, 20.8, 17.0, 29.0, 25.8, 29.0, 17.0,
+                       24.3, 22.9, 43.6),
+               catchability = species_params$catchability)
 
-# Create the params object
-params <- newMultispeciesParams(species_params, interaction = inter, min_w_pp = 1e-14, no_w = 100, kappa = 1e12, w_pp_cutoff = 455400*1.1)
+# Create the params object - check kappa is based on Spence et al 2016  value
+params <- newMultispeciesParams(species_params, 
+                                interaction = inter, 
+                                kappa = 9.27e10,
+                                gear_params = gear_params)
+
+# Run to equilibrium
+sim <- project(params, effort = 1, t_max = 200, dt=0.1)
+
+plot(sim)
+
 ```
 
 ## Load data needed for FishMIP scenarios
@@ -86,14 +77,15 @@ The time series of fishing mortality, "FishingEffort.dat" was created with "Crea
 ```{r}
 
 # Load fishing scenario
-effort_Fhistsoc <- read.table("FishingEffort.dat", sep = " ")
-effort_Fhistsoc <- effort_Fhistsoc[,2] # Column 1 = year, which we won't need
-effort_Fhistsoc <- as(effort_Fhistsoc, "matrix")
+
+# read saved data
+
+effort_Fhistsoc<-readRDS("FishingEffort.RDS")
 
 # Build fishing effort arrays
 # Since we're following the approach of Woodworth-Jefcoats et al. 2019, we'll begin the model with 600 years of constant input for spinup.  This means the first year will be 1350 (1950 - 600).
 times <- seq(1350, 2100, by = 1)
-gear_names <- c("Longline")
+gear_names <-  gear_params(params)$gear
 effort_array_Fhistsoc <- array(NA, dim = c(length(times), length(gear_names)), dimnames = list(time = times, gear = gear_names))
 effort_array_Fnat <- array(NA, dim = c(length(times), length(gear_names)), dimnames = list(time = times, gear = gear_names))
 
@@ -102,13 +94,19 @@ effort_array_Fnat <- array(NA, dim = c(length(times), length(gear_names)), dimna
 # During this time, the first input value is repeated at each time step
 for (t in (times - 1349)) {
 	if (t <= 601) { 
-		effort_array_Fhistsoc[t,"Longline"] <- effort_Fhistsoc[1]
-		effort_array_Fnat[t,"Longline"] <- 0
+		effort_array_Fhistsoc[t,] <- effort_Fhistsoc[1,]
+		effort_array_Fnat[t,] <- 0
 	} else {
-		effort_array_Fhistsoc[t,"Longline"] <- effort_Fhistsoc[t - 600]
-		effort_array_Fnat[t,"Longline"] <- 0
+		effort_array_Fhistsoc[t,] <- effort_Fhistsoc[t - 600]
+		effort_array_Fnat[t,] <- 0
 		}
 }
+
+
+# check it runs:
+# simt <- project(params, effort = effort_array_Fhistsoc, dt = 0.25, t_save = 1)
+# 
+# plot(simt)
 
 ```
 
@@ -174,6 +172,8 @@ for (t in (times - 1349)) {
 
 There is also different plankton forcing for each of the three climate scenarios.  These plankton forcings are used to create the resource spectra (which include more than plankton).  Plankton forcing files were created with "PrepPlankton_scaled.Rmd".
 
+*JB NOTE : Check area assumption is OK.
+
 ```{r}
 
 # Load data for each CMIP6 model: GFDL-ESM4 and IPSL-CM6A-LR
@@ -205,6 +205,9 @@ n_pp_array_IPSL_CC585 <- array(NA, dim = c(length(times), length(sizes)), dimnam
 
 # Fill arrays, remembering that values in n_pp are log10 abundances.
 # They'll need to be transformed (inverse log10) and divided by bin width (dw_full)
+
+### JB: COULD DO THIS IN PLANKTON_PREP?
+
 for (t in (times - 1349)) {
 	if (t <= 601) { 
 		n_pp_array_GFDL_PIcontrol[t,] <- (10^(GFDL_n_pp_PIcontrol[1,]))/params@dw_full
@@ -451,6 +454,9 @@ plot(sim_IPSL_ssp1rcp26_nat)
 plot(sim_IPSL_ssp5rcp85_histsoc)
 plot(sim_IPSL_ssp5rcp85_nat)
 
+
+## FEEDING LEVELS VERY HIGH : CHECK PLANKTON COULD BE RELATIVE TO CALIBRATED? CHECK FISHING ALSO RELATIVE? CHECK CATCHABILTY NOT BEING USED
+## PLANKTON SHOULD NOT EXTEND ALL THE WAY ALONG THE SPECTRUM
 ```
 After checking through the code and results to make sure everything worked, we'll save the `sim` objects so that we can prepare the output as FishMIP requests.
 
