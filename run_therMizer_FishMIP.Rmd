@@ -9,6 +9,8 @@ output:
     fig_height: 5
 ---
 
+[Modified from Phoebe Woodworth-Jefcoat's original Hawaii longline example, for the North Sea]
+
 ## Purpose
 These runs are for the regional model of North Sea fish community and multispecies fisheries for FishMIP simulations using therMizer. They include temperature and plankton forcing from the CMIP6 models.  This code has been adapted from Phoebe Woodworth-Jefcoats' script for the Hawaii longline fishery (https://github.com/pwoodworth-jefcoats/therMizer-FishMIP-2020-HI). The same approach can be adapted for any regional mizer model using this script, provided the regional forcing files have been obtained (available from FishMip coordinators).
 
@@ -225,6 +227,19 @@ for (t in (times - 1349)) {
 		n_pp_array_IPSL_CC585[t,] <- (10^(IPSL_n_pp_CC585[t - 600,]))/params@dw_full
 		}
 }
+
+
+### JB: replace all values above params@resource_params$w_pp_cutoff with zeroes
+wcut_index<-which(params@w_full>=params@resource_params$w_pp_cutoff)
+
+		n_pp_array_GFDL_PIcontrol[,wcut_index] <- 0
+		n_pp_array_GFDL_CC126[,wcut_index] <- 0
+		n_pp_array_GFDL_CC585[,wcut_index] <- 0
+		n_pp_array_IPSL_PIcontrol[,wcut_index] <- 0
+		n_pp_array_IPSL_CC126[,wcut_index] <- 0
+		n_pp_array_IPSL_CC585[,wcut_index] <- 0
+
+
 
 ```
 
@@ -456,7 +471,7 @@ plot(sim_IPSL_ssp5rcp85_nat)
 
 
 ## FEEDING LEVELS VERY HIGH : CHECK PLANKTON COULD BE RELATIVE TO CALIBRATED? CHECK FISHING ALSO RELATIVE? CHECK CATCHABILTY NOT BEING USED
-## PLANKTON SHOULD NOT EXTEND ALL THE WAY ALONG THE SPECTRUM
+### CHECK GROWTH, CATCHES ETC
 ```
 After checking through the code and results to make sure everything worked, we'll save the `sim` objects so that we can prepare the output as FishMIP requests.
 
